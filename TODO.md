@@ -1,0 +1,12 @@
+# pstr - A Regex Engine in Golang
+
+A regex engine can be divided into 3 parts:
+
+- [ ] Parser
+- [ ] NFA
+- [ ] Matching
+
+
+## References
+-  [How to build a regex engine from scratch - rhaeguard](https://rhaeguard.github.io/posts/regex/)
+-  [Go by Example](https://gobyexample.com)
