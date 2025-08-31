@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/rubuy-74/pstr/internal/parser"
+	"github.com/rubuy-74/pstr/internal/state_machine"
 )
 
 func getInput(message string) string {
@@ -30,7 +31,7 @@ func main() {
 		}
 		ctx.Print()
 
-		nfa := parser.ToNFA(ctx)
+		nfa := state_machine.ToNFA(ctx)
 		fmt.Println(nfa)
 
 		isValid := nfa.Check(stringToCheck, -1)
