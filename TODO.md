@@ -5,6 +5,7 @@ A regex engine can be divided into 3 parts:
 - [ ] Parser
 - [ ] NFA
 - [ ] Matching
+- [ ] API
 
 
 ## References
