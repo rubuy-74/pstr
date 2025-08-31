@@ -3,7 +3,7 @@
 - [X] Parser
 - [X] NFA
 - [X] Matching
-- [ ] Organize Code
+- [X] Organize Code
 - [ ] Tests
 - [ ] API
 - [ ] Deploy (Cloudflare Workers ???) (AWS Lambda ???) (Vercel some bullshit ??? )

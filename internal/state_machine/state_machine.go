@@ -1,63 +1,34 @@
-package statemachine
+package state_machine
 
 import (
+	"github.com/rubuy-74/pstr/internal/models/state"
 	"github.com/rubuy-74/pstr/internal/parser"
+	"github.com/rubuy-74/pstr/internal/utils"
 )
 
-type tokenValue uint8
-
-const epsilon tokenValue = 0
-
-type state struct {
-	Initial     bool
-	Final       bool
-	Transitions map[tokenValue][]*state
-}
-
-func tokenToNFA(token parser.Token) (*state, *state) {
-	start := &state{
-		Transitions: map[tokenValue][]*state{},
-	}
-	end := &state{
-		Transitions: map[tokenValue][]*state{},
-	}
-
-	switch token.TokenType {
-	case parser.group:
-	case bracket:
-	case or:
-	case repeat:
-	case literal:
-	case groupUncaptured:
-
-	}
-
-	return start, end
-}
-
-func toNFA(ctx *parser.ParseContext) *state {
-	startOld, endOld := tokenToNFA(ctx.Tokens[0])
+func ToNFA(ctx *parser.ParseContext) *state.State {
+	startOld, endOld := (ctx.Tokens[0]).ToNFA()
 	for i := 1; i < len(ctx.Tokens); i++ {
-		startNew, endNew := tokenToNFA(ctx.Tokens[i])
-		endOld.Transitions[epsilon] = append(endOld.Transitions[epsilon], startNew)
+		startNew, endNew := (ctx.Tokens[i]).ToNFA()
+		endOld.Transitions[utils.Epsilon] = append(endOld.Transitions[utils.Epsilon], startNew)
 		endOld = endNew
 	}
 
-	initialGlobalState := &state{
+	initialGlobalState := &state.State{
 		Initial: true,
 		Final:   false,
-		Transitions: map[tokenValue][]*state{
-			epsilon: {startOld},
+		Transitions: map[uint8][]*state.State{
+			utils.Epsilon: {startOld},
 		},
 	}
 
-	finalGlobalState := &state{
+	finalGlobalState := &state.State{
 		Initial:     false,
 		Final:       true,
-		Transitions: map[tokenValue][]*state{},
+		Transitions: map[uint8][]*state.State{},
 	}
 
-	endOld.Transitions[epsilon] = append(endOld.Transitions[epsilon], finalGlobalState)
+	endOld.Transitions[utils.Epsilon] = append(endOld.Transitions[utils.Epsilon], finalGlobalState)
 
 	return initialGlobalState
 }

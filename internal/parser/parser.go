@@ -5,81 +5,17 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+
+	"github.com/rubuy-74/pstr/internal/models/token"
+	"github.com/rubuy-74/pstr/internal/models/token_type"
+	"github.com/rubuy-74/pstr/internal/utils"
 )
 
-const infinite = -1
-
-type TokenType uint8
 type rangeSize int
-
-const (
-	group           TokenType = iota
-	bracket         TokenType = iota
-	or              TokenType = iota
-	repeat          TokenType = iota
-	literal         TokenType = iota
-	groupUncaptured TokenType = iota
-)
-
-func (t TokenType) String() string {
-	switch t {
-	case group:
-		return "group"
-	case bracket:
-		return "bracket"
-	case or:
-		return "or"
-	case repeat:
-		return "repeat"
-	case literal:
-		return "literal"
-	case groupUncaptured:
-		return "groupUncaptured"
-	default:
-		return fmt.Sprintf("TokenType(%d)", t)
-	}
-}
-
-const (
-	minInfinite rangeSize = iota
-	InfiniteMax rangeSize = iota
-	minMax      rangeSize = iota
-)
-
-type Token struct {
-	TokenType TokenType
-	Value     any
-}
-
-func (t Token) String() string {
-	if b, ok := t.Value.(byte); ok {
-		return fmt.Sprintf("{ %v '%v' }", t.TokenType, string(byte(b)))
-	}
-	return fmt.Sprintf("{ %v %v }", t.TokenType, t.Value)
-}
-
-type repeatPayload struct {
-	min   int
-	max   int
-	token Token
-}
-
-func (rp repeatPayload) String() string {
-	return fmt.Sprintf("{ %v %v %v }", rp.min, rp.max, rp.token.String())
-}
 
 type ParseContext struct {
 	Pos    int
-	Tokens []Token
-}
-
-type bracketPayload struct {
-	begin byte
-	end   byte
-}
-
-func (bp bracketPayload) String() string {
-	return fmt.Sprintf("[ '%v' - '%v' ]", string(bp.begin), string(bp.end))
+	Tokens []token.Token
 }
 
 func (ctx ParseContext) Print() {
@@ -116,10 +52,10 @@ func process(regex []byte, ctx *ParseContext) error {
 		processOr(regex, ctx)
 
 	case '*':
-		processRepeat(regex, ctx, 0, infinite)
+		processRepeat(regex, ctx, 0, utils.Infinite)
 
 	case '+':
-		processRepeat(regex, ctx, 1, infinite)
+		processRepeat(regex, ctx, 1, utils.Infinite)
 
 	case '?':
 		processRepeat(regex, ctx, 0, 1)
@@ -129,8 +65,8 @@ func process(regex []byte, ctx *ParseContext) error {
 		processRepeat(regex, ctx, minimum, maximum)
 	default:
 		ctx.Tokens = append(ctx.Tokens,
-			Token{
-				TokenType: literal,
+			token.Token{
+				TokenType: token_type.Literal,
 				Value:     ch,
 			})
 	}
@@ -162,10 +98,10 @@ func getMinMaxRange(regex []byte, ctx *ParseContext) (minimum int, maximum int) 
 		if len(rangeString) == 1 {
 			if rawRange[0] == ',' {
 				maximum, _ := strconv.Atoi(string(rangeString[0]))
-				return infinite, maximum
+				return utils.Infinite, maximum
 			} else {
 				minimum, _ := strconv.Atoi(string(rangeString[0]))
-				return minimum, infinite
+				return minimum, utils.Infinite
 			}
 		}
 		if len(rangeString) == 2 {
@@ -174,7 +110,7 @@ func getMinMaxRange(regex []byte, ctx *ParseContext) (minimum int, maximum int) 
 			return minimum, maximum
 		}
 	}
-	return infinite, infinite
+	return utils.Infinite, utils.Infinite
 }
 
 /*
@@ -198,15 +134,15 @@ chunkBytes splits a byte slice into chunks of given size,
 but only keeps the first and last byte of each chunk.
 Used mainly for bracket expressions with ranges (like a-z).
 */
-func chunkBytes(data []byte, size int) []bracketPayload {
+func chunkBytes(data []byte, size int) []token.BracketPayload {
 	numSlices := (len(data) + size - 1) / size
-	subslices := make([]bracketPayload, 0, numSlices)
+	subslices := make([]token.BracketPayload, 0, numSlices)
 
 	for i := 0; i < len(data); i += size {
 		end := min(i+size, len(data))
-		subslice := bracketPayload{
-			begin: data[i],
-			end:   data[end-1],
+		subslice := token.BracketPayload{
+			Begin: data[i],
+			End:   data[end-1],
 		}
 		subslices = append(subslices, subslice)
 	}
@@ -229,7 +165,7 @@ func processGroup(regex []byte, ctx *ParseContext) error {
 	groupRegex := regex[ctx.Pos:newPos]
 	groupCtx := &ParseContext{
 		Pos:    0,
-		Tokens: []Token{},
+		Tokens: []token.Token{},
 	}
 
 	for groupCtx.Pos < len(groupRegex) {
@@ -261,7 +197,7 @@ func processBrackets(regex []byte, ctx *ParseContext) error {
 	}
 	insideRegex := regex[ctx.Pos:newPos]
 
-	bpSlice := []bracketPayload{}
+	bpSlice := []token.BracketPayload{}
 
 	if slices.Contains(insideRegex, '-') {
 		ranges := chunkBytes(insideRegex, 3)
@@ -271,15 +207,15 @@ func processBrackets(regex []byte, ctx *ParseContext) error {
 	} else {
 		bpSlice = append(
 			bpSlice,
-			bracketPayload{
-				begin: insideRegex[1],
-				end:   insideRegex[len(insideRegex)-2],
+			token.BracketPayload{
+				Begin: insideRegex[1],
+				End:   insideRegex[len(insideRegex)-2],
 			},
 		)
 	}
 
-	token := Token{
-		TokenType: bracket,
+	token := token.Token{
+		TokenType: token_type.Bracket,
 		Value:     bpSlice,
 	}
 	ctx.Tokens = append(ctx.Tokens, token)
@@ -295,7 +231,7 @@ Currently not implemented.
 func processOr(regex []byte, ctx *ParseContext) {
 	rhsContext := &ParseContext{
 		Pos:    ctx.Pos,
-		Tokens: []Token{},
+		Tokens: []token.Token{},
 	}
 
 	rhsContext.Pos += 1
@@ -304,21 +240,21 @@ func processOr(regex []byte, ctx *ParseContext) {
 		rhsContext.Pos += 1
 	}
 
-	left := Token{
-		TokenType: groupUncaptured,
+	left := token.Token{
+		TokenType: token_type.GroupUncaptured,
 		Value:     ctx.Tokens,
 	}
 
-	right := Token{
-		TokenType: groupUncaptured,
+	right := token.Token{
+		TokenType: token_type.GroupUncaptured,
 		Value:     rhsContext.Tokens,
 	}
 
 	ctx.Pos = rhsContext.Pos
 
-	ctx.Tokens = []Token{{
-		TokenType: or,
-		Value:     []Token{left, right},
+	ctx.Tokens = []token.Token{{
+		TokenType: token_type.Or,
+		Value:     []token.Token{left, right},
 	}}
 }
 
@@ -332,12 +268,12 @@ func processRepeat(regex []byte, ctx *ParseContext, min int, max int) {
 	_ = regex // TODO: the regex variable will be used in the future
 	lastToken := ctx.Tokens[len(ctx.Tokens)-1]
 	ctx.Tokens = ctx.Tokens[:len(ctx.Tokens)-1]
-	ctx.Tokens = append(ctx.Tokens, Token{
-		TokenType: repeat,
-		Value: repeatPayload{
-			min:   min,
-			max:   max,
-			token: lastToken,
+	ctx.Tokens = append(ctx.Tokens, token.Token{
+		TokenType: token_type.Repeat,
+		Value: token.RepeatPayload{
+			Min:   min,
+			Max:   max,
+			Token: lastToken,
 		},
 	})
 }
@@ -352,7 +288,7 @@ func Parse(regexString string) (*ParseContext, error) {
 	regex := []byte(regexString)
 	ctx := &ParseContext{
 		Pos:    0,
-		Tokens: []Token{},
+		Tokens: []token.Token{},
 	}
 	for ctx.Pos < len(regex) {
 		err := process(regex, ctx)
