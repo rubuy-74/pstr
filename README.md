@@ -67,13 +67,20 @@
 ├── cmd/
 │   └── main.go              # Application entry point (Interactive CLI)
 ├── internal/
+│   ├── models/
+│   │   ├── state/
+│   │   │   └── state.go       # NFA state data structures
+│   │   ├── token/
+│   │   │   └── token.go       # Regex token data structures
+│   │   └── token_type/
+│   │       └── token_type.go  # Enum for token types
 │   ├── parser/
 │   │   ├── parser.go        # Regex string to token parsing
-│   │   ├── state_machine.go # Token to NFA conversion
-│   │   ├── matching.go      # NFA-based string matching logic
 │   │   └── parser_test.go   # Tests for the parser
-│   └── state_machine/
-│       └── state_machine.go # NFA data structures and implementation
+│   ├── state_machine/
+│   │   └── state_machine.go # Token to NFA conversion and matching logic
+│   └── utils/
+│       └── utils.go         # Utility functions
 ├── go.mod                   # Go module definition
 ├── run.sh                   # Script to run the CLI
 └── TODO.md                  # Project goals and references
