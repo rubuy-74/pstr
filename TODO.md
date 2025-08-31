@@ -1,8 +1,6 @@
 # pstr - A Regex Engine in Golang
 
-A regex engine can be divided into 3 parts:
-
-- [ ] Parser
+- [X] Parser
 - [ ] NFA
 - [ ] Matching
 - [ ] API
