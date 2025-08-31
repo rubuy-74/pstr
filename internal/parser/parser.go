@@ -9,19 +9,19 @@ import (
 
 const infinite = -1
 
-type tokenType uint8
+type TokenType uint8
 type rangeSize int
 
 const (
-	group           tokenType = iota
-	bracket         tokenType = iota
-	or              tokenType = iota
-	repeat          tokenType = iota
-	literal         tokenType = iota
-	groupUncaptured tokenType = iota
+	group           TokenType = iota
+	bracket         TokenType = iota
+	or              TokenType = iota
+	repeat          TokenType = iota
+	literal         TokenType = iota
+	groupUncaptured TokenType = iota
 )
 
-func (t tokenType) String() string {
+func (t TokenType) String() string {
 	switch t {
 	case group:
 		return "group"
@@ -36,7 +36,7 @@ func (t tokenType) String() string {
 	case groupUncaptured:
 		return "groupUncaptured"
 	default:
-		return fmt.Sprintf("tokenType(%d)", t)
+		return fmt.Sprintf("TokenType(%d)", t)
 	}
 }
 
@@ -46,22 +46,22 @@ const (
 	minMax      rangeSize = iota
 )
 
-type token struct {
-	tokenType tokenType
-	value     any
+type Token struct {
+	TokenType TokenType
+	Value     any
 }
 
-func (t token) String() string {
-	if b, ok := t.value.(byte); ok {
-		return fmt.Sprintf("{ %v '%v' }", t.tokenType, string(byte(b)))
+func (t Token) String() string {
+	if b, ok := t.Value.(byte); ok {
+		return fmt.Sprintf("{ %v '%v' }", t.TokenType, string(byte(b)))
 	}
-	return fmt.Sprintf("{ %v %v }", t.tokenType, t.value)
+	return fmt.Sprintf("{ %v %v }", t.TokenType, t.Value)
 }
 
 type repeatPayload struct {
 	min   int
 	max   int
-	token token
+	token Token
 }
 
 func (rp repeatPayload) String() string {
@@ -69,8 +69,8 @@ func (rp repeatPayload) String() string {
 }
 
 type ParseContext struct {
-	pos    int
-	tokens []token
+	Pos    int
+	Tokens []Token
 }
 
 type bracketPayload struct {
@@ -83,8 +83,8 @@ func (bp bracketPayload) String() string {
 }
 
 func (ctx ParseContext) Print() {
-	fmt.Printf("ctx.pos		: %v\n", ctx.pos)
-	fmt.Printf("ctx.tokens: %v\n", ctx.tokens)
+	fmt.Printf("ctx.Pos		: %v\n", ctx.Pos)
+	fmt.Printf("ctx.Tokens: %v\n", ctx.Tokens)
 }
 
 /*
@@ -100,7 +100,7 @@ and updates the ParseContext with tokens according to the symbol:
 - default: any other character is treated as a literal token
 */
 func process(regex []byte, ctx *ParseContext) error {
-	ch := regex[ctx.pos]
+	ch := regex[ctx.Pos]
 	switch ch {
 	case '(':
 		err := processGroup(regex, ctx)
@@ -128,10 +128,10 @@ func process(regex []byte, ctx *ParseContext) error {
 		minimum, maximum := getMinMaxRange(regex, ctx)
 		processRepeat(regex, ctx, minimum, maximum)
 	default:
-		ctx.tokens = append(ctx.tokens,
-			token{
-				tokenType: literal,
-				value:     ch,
+		ctx.Tokens = append(ctx.Tokens,
+			Token{
+				TokenType: literal,
+				Value:     ch,
 			})
 	}
 	return nil
@@ -147,13 +147,13 @@ If parsing fails or invalid, returns infinite for both.
 TODO: error handling
 */
 func getMinMaxRange(regex []byte, ctx *ParseContext) (minimum int, maximum int) {
-	newPos := findNextSymbol(regex, ctx.pos, '}')
-	rawRange := string(regex[ctx.pos+1 : newPos])
+	newPos := findNextSymbol(regex, ctx.Pos, '}')
+	rawRange := string(regex[ctx.Pos+1 : newPos])
 	rangeString := strings.FieldsFunc(rawRange, func(r rune) bool {
 		return r == ','
 	})
 
-	ctx.pos = newPos
+	ctx.Pos = newPos
 	// TODO: better checking (use macros)
 	if !strings.Contains(rawRange, ",") {
 		value, _ := strconv.Atoi(rawRange)
@@ -221,27 +221,27 @@ processGroup handles a capturing group "( ... )".
 - Appends parsed tokens of the group back into the parent context
 */
 func processGroup(regex []byte, ctx *ParseContext) error {
-	ctx.pos++
-	newPos := findNextSymbol(regex, ctx.pos, ')')
+	ctx.Pos++
+	newPos := findNextSymbol(regex, ctx.Pos, ')')
 	if newPos == 1 {
 		return fmt.Errorf("invalid ( in the regex string")
 	}
-	groupRegex := regex[ctx.pos:newPos]
+	groupRegex := regex[ctx.Pos:newPos]
 	groupCtx := &ParseContext{
-		pos:    0,
-		tokens: []token{},
+		Pos:    0,
+		Tokens: []Token{},
 	}
 
-	for groupCtx.pos < len(groupRegex) {
+	for groupCtx.Pos < len(groupRegex) {
 		err := process(groupRegex, groupCtx)
 		if err != nil {
 			return err
 		}
-		groupCtx.pos++
+		groupCtx.Pos++
 	}
 
-	ctx.pos = newPos
-	ctx.tokens = append(ctx.tokens, groupCtx.tokens...)
+	ctx.Pos = newPos
+	ctx.Tokens = append(ctx.Tokens, groupCtx.Tokens...)
 
 	return nil
 }
@@ -254,31 +254,37 @@ processBrackets handles a character class "[ ... ]".
 - Appends bracket tokens to the context
 */
 func processBrackets(regex []byte, ctx *ParseContext) error {
-	ctx.pos++
-	newPos := findNextSymbol(regex, ctx.pos, ']')
+	ctx.Pos++
+	newPos := findNextSymbol(regex, ctx.Pos, ']')
 	if newPos == 1 {
 		return fmt.Errorf("invalid [ in the regex string")
 	}
-	insideRegex := regex[ctx.pos:newPos]
+	insideRegex := regex[ctx.Pos:newPos]
+
+	bpSlice := []bracketPayload{}
+
 	if slices.Contains(insideRegex, '-') {
 		ranges := chunkBytes(insideRegex, 3)
 		for _, r := range ranges {
-			ctx.tokens = append(ctx.tokens, token{
-				tokenType: bracket,
-				value:     r,
-			})
+			bpSlice = append(bpSlice, r)
 		}
 	} else {
-		ctx.tokens = append(ctx.tokens, token{
-			tokenType: bracket,
-			value: bracketPayload{
+		bpSlice = append(
+			bpSlice,
+			bracketPayload{
 				begin: insideRegex[1],
 				end:   insideRegex[len(insideRegex)-2],
 			},
-		})
+		)
 	}
 
-	ctx.pos = newPos
+	token := Token{
+		TokenType: bracket,
+		Value:     bpSlice,
+	}
+	ctx.Tokens = append(ctx.Tokens, token)
+
+	ctx.Pos = newPos
 	return nil
 }
 
@@ -288,31 +294,31 @@ Currently not implemented.
 */
 func processOr(regex []byte, ctx *ParseContext) {
 	rhsContext := &ParseContext{
-		pos:    ctx.pos,
-		tokens: []token{},
+		Pos:    ctx.Pos,
+		Tokens: []Token{},
 	}
 
-	rhsContext.pos += 1
-	for rhsContext.pos < len(regex) && regex[rhsContext.pos] != ')' {
+	rhsContext.Pos += 1
+	for rhsContext.Pos < len(regex) && regex[rhsContext.Pos] != ')' {
 		process(regex, rhsContext)
-		rhsContext.pos += 1
+		rhsContext.Pos += 1
 	}
 
-	left := token{
-		tokenType: groupUncaptured,
-		value:     ctx.tokens,
+	left := Token{
+		TokenType: groupUncaptured,
+		Value:     ctx.Tokens,
 	}
 
-	right := token{
-		tokenType: groupUncaptured,
-		value:     rhsContext.tokens,
+	right := Token{
+		TokenType: groupUncaptured,
+		Value:     rhsContext.Tokens,
 	}
 
-	ctx.pos = rhsContext.pos
+	ctx.Pos = rhsContext.Pos
 
-	ctx.tokens = []token{{
-		tokenType: or,
-		value:     []token{left, right},
+	ctx.Tokens = []Token{{
+		TokenType: or,
+		Value:     []Token{left, right},
 	}}
 }
 
@@ -324,11 +330,11 @@ Currently not implemented.
 */
 func processRepeat(regex []byte, ctx *ParseContext, min int, max int) {
 	_ = regex // TODO: the regex variable will be used in the future
-	lastToken := ctx.tokens[len(ctx.tokens)-1]
-	ctx.tokens = ctx.tokens[:len(ctx.tokens)-1]
-	ctx.tokens = append(ctx.tokens, token{
-		tokenType: repeat,
-		value: repeatPayload{
+	lastToken := ctx.Tokens[len(ctx.Tokens)-1]
+	ctx.Tokens = ctx.Tokens[:len(ctx.Tokens)-1]
+	ctx.Tokens = append(ctx.Tokens, Token{
+		TokenType: repeat,
+		Value: repeatPayload{
 			min:   min,
 			max:   max,
 			token: lastToken,
@@ -345,15 +351,15 @@ Parse initializes parsing for a regex string.
 func Parse(regexString string) (*ParseContext, error) {
 	regex := []byte(regexString)
 	ctx := &ParseContext{
-		pos:    0,
-		tokens: []token{},
+		Pos:    0,
+		Tokens: []Token{},
 	}
-	for ctx.pos < len(regex) {
+	for ctx.Pos < len(regex) {
 		err := process(regex, ctx)
 		if err != nil {
 			return nil, err
 		}
-		ctx.pos++
+		ctx.Pos++
 	}
 
 	return ctx, nil

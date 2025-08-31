@@ -10,9 +10,9 @@ import (
 	"github.com/rubuy-74/pstr/internal/parser"
 )
 
-func getRegex() string {
+func getInput(message string) string {
 	reader := bufio.NewReader(os.Stdin)
-	fmt.Println("Enter regex:")
+	fmt.Println(message)
 	fmt.Print("> ")
 	input, _ := reader.ReadString('\n')
 	input = strings.TrimSpace(input)
@@ -21,11 +21,23 @@ func getRegex() string {
 
 func main() {
 	for {
-		regexString := getRegex()
+		regexString := getInput("Enter regex")
+		stringToCheck := getInput("Enter string to check")
+
 		ctx, err := parser.Parse(regexString)
 		if err != nil {
 			log.Fatalf("Error while parsing regex: %s", err)
 		}
 		ctx.Print()
+
+		nfa := parser.ToNFA(ctx)
+		fmt.Println(nfa)
+
+		isValid := nfa.Check(stringToCheck, -1)
+		if isValid {
+			fmt.Println("Congratulations, the string is VALID")
+		} else {
+			fmt.Println("Fuck you, the string is NOT VALID")
+		}
 	}
 }
