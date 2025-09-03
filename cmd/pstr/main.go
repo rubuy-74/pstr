@@ -17,6 +17,10 @@ type RegexRequest struct {
 func main() {
 	app := fiber.New()
 
+	app.Get("/", func(c *fiber.Ctx) error {
+		return c.SendString("ok")
+	})
+
 	app.Post("/check", func(c *fiber.Ctx) error {
 		regexRequest := new(RegexRequest)
 		if err := c.BodyParser(regexRequest); err != nil {
