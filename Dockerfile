@@ -12,4 +12,4 @@ WORKDIR /root/
 COPY --from=builder /bin/pstr .
 
 EXPOSE 3000
-ENTRYPOINT ["./server"]
+ENTRYPOINT ["./pstr"]
