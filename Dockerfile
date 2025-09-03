@@ -1,16 +1,15 @@
-FROM golang:1.23 AS builder
+FROM golang:1.24-alpine AS builder
 
 WORKDIR /app
-
 COPY go.mod go.sum ./
 RUN go mod download
 
 COPY . .
+RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o /bin/pstr ./cmd/pstr/
 
-RUN go build -o server .
-
-FROM debian:bullseye-slim
+FROM alpine:latest
 WORKDIR /root/
-COPY --from=builder /app/server .
+COPY --from=builder /bin/pstr .
+
 EXPOSE 3000
-CMD ["./server"]
+ENTRYPOINT ["./server"]
