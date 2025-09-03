@@ -5,9 +5,8 @@
 - [X] Matching
 - [X] Organize Code
 - [ ] Tests
-- [ ] API
-- [ ] Deploy (Cloudflare Workers ???) (AWS Lambda ???) (Vercel some bullshit ??? )
-
+- [X] API
+- [ ] Deploy
 
 ## References
 -  [How to build a regex engine from scratch - rhaeguard](https://rhaeguard.github.io/posts/regex/)

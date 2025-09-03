@@ -18,10 +18,12 @@
 - **NFA Engine**: Converts parsed regex tokens into an NFA state machine.
 - **String Matching**: Checks if an input string is valid according to the generated NFA.
 - **Interactive CLI**: A simple command-line interface to test regex patterns in real-time.
+- **Exposed API**: An API endpoint to check regex patterns programmatically.
 
 ## 🛠 Tech Stack
 
 - [Go](https://golang.org/) (1.24+)
+- [Fiber](https://gofiber.io/)
 
 ---
 
@@ -46,7 +48,7 @@
     ```
     Or run it directly with Go:
     ```bash
-    go run cmd/main.go
+    go run cmd/main_dev.go
     ```
 
 3.  **Test a pattern:**
@@ -61,11 +63,35 @@
     Congratulations, the string is VALID
     ```
 
+### ▶️ Running the API
+
+1.  **Run the API server:**
+    ```bash
+    go run cmd/main.go
+    ```
+    The server will start on port `3000`.
+
+2.  **Send a POST request:**
+    You can use `curl` or any API client to send a `POST` request to the `/check` endpoint.
+
+    *Example with `curl`:*
+    ```bash
+    curl -X POST -H "Content-Type: application/json" -d '{"regex": "(a|b)*c", "string": "ababc"}' http://localhost:3000/check
+    ```
+
+    *Expected Response:*
+    ```json
+    {
+        "valid": true
+    }
+    ```
+
 ## 📁 Project Structure
 
 ```text
 ├── cmd/
-│   └── main.go              # Application entry point (Interactive CLI)
+│   ├── main.go              # API endpoint
+│   └── main_dev.go          # Application entry point (Interactive CLI)
 ├── internal/
 │   ├── models/
 │   │   ├── state/

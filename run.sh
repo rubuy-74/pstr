@@ -1,1 +1,1 @@
-go run cmd/main.go
+go run cmd/cli/cli.go
