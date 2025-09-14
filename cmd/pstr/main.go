@@ -1,8 +1,6 @@
 package main
 
 import (
-	"fmt"
-
 	"github.com/gofiber/fiber/v2"
 	"github.com/rubuy-74/pstr/internal/parser"
 	"github.com/rubuy-74/pstr/internal/state_machine"
@@ -28,15 +26,22 @@ func main() {
 
 		regex := regexRequest.Regex
 		matchString := regexRequest.MatchString
-		fmt.Println(regex)
-		fmt.Println(matchString)
 
 		parsedRegex, err := parser.Parse(regex)
 		if err != nil {
-			return c.Status(400).JSON(fiber.Map{"error": "failed to parse regex"})
+			return c.Status(400).JSON(fiber.Map{
+				"error":   "failed to parse regex",
+				"message": err,
+			})
 		}
 
-		nfa := state_machine.ToNFA(parsedRegex)
+		nfa, err := state_machine.ToNFA(parsedRegex)
+		if err != nil {
+			return c.Status(400).JSON(fiber.Map{
+				"error":   "failed to create NFA",
+				"message": err,
+			})
+		}
 		valid := nfa.Check(matchString, -1)
 		return c.JSON(fiber.Map{
 			"valid": valid,

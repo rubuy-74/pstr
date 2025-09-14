@@ -49,96 +49,98 @@ func (token Token) ToNFA() (*state.State, *state.State) {
 
 	switch token.TokenType {
 	case token_type.Group, token_type.GroupUncaptured: // UNTESTED
-		values := token.Value.([]Token)
-		start, end = (values[0]).ToNFA()
-		for i := 1; i < len(values); i++ {
-			startNew, endNew := (values[i]).ToNFA()
-			end.Transitions[utils.Epsilon] = append(
-				end.Transitions[utils.Epsilon],
-				startNew,
-			)
-			end = endNew
+		if values, ok := token.Value.([]Token); ok {
+			start, end = (values[0]).ToNFA()
+			for i := 1; i < len(values); i++ {
+				startNew, endNew := (values[i]).ToNFA()
+				end.Transitions[utils.Epsilon] = append(
+					end.Transitions[utils.Epsilon],
+					startNew,
+				)
+				end = endNew
+			}
 		}
 	case token_type.Bracket:
-		values := token.Value.([]BracketPayload)
-		for _, bp := range values {
-			for i := bp.Begin; i < bp.End+1; i++ {
-				fmt.Printf("%v ", i)
-				start.Transitions[i] = []*state.State{end}
+		if values, ok := token.Value.([]BracketPayload); ok {
+			for _, bp := range values {
+				for i := bp.Begin; i < bp.End+1; i++ {
+					start.Transitions[i] = []*state.State{end}
+				}
 			}
 		}
-		fmt.Println()
 	case token_type.Or:
-		values := token.Value.([]Token)
-		left := values[0]
-		right := values[1]
-		s1, e1 := left.ToNFA()
-		s2, e2 := right.ToNFA()
+		if values, ok := token.Value.([]Token); ok {
+			left := values[0]
+			right := values[1]
+			s1, e1 := left.ToNFA()
+			s2, e2 := right.ToNFA()
 
-		start.Transitions[utils.Epsilon] = []*state.State{s1, s2}
-		e1.Transitions[utils.Epsilon] = []*state.State{end}
-		e2.Transitions[utils.Epsilon] = []*state.State{end}
+			start.Transitions[utils.Epsilon] = []*state.State{s1, s2}
+			e1.Transitions[utils.Epsilon] = []*state.State{end}
+			e2.Transitions[utils.Epsilon] = []*state.State{end}
+		}
 
 	case token_type.Repeat:
-		payload := token.Value.(RepeatPayload)
-
-		if payload.Min == 0 {
-			start.Transitions[utils.Epsilon] = []*state.State{end}
-		}
-
-		copyCount := 0
-
-		if payload.Max == utils.Infinite {
+		if payload, ok := token.Value.(RepeatPayload); ok {
 			if payload.Min == 0 {
-				copyCount = 1
-			} else {
-				copyCount = payload.Min
+				start.Transitions[utils.Epsilon] = []*state.State{end}
 			}
-		} else {
-			copyCount = payload.Max
-		}
 
-		sOld, eOld := payload.Token.ToNFA()
-		start.Transitions[utils.Epsilon] = append(
-			start.Transitions[utils.Epsilon],
-			sOld,
-		)
+			copyCount := 0
 
-		for i := 2; i <= copyCount; i++ {
-			sNew, eNew := payload.Token.ToNFA()
+			if payload.Max == utils.Infinite {
+				if payload.Min == 0 {
+					copyCount = 1
+				} else {
+					copyCount = payload.Min
+				}
+			} else {
+				copyCount = payload.Max
+			}
+
+			sOld, eOld := payload.Token.ToNFA()
+			start.Transitions[utils.Epsilon] = append(
+				start.Transitions[utils.Epsilon],
+				sOld,
+			)
+
+			for i := 2; i <= copyCount; i++ {
+				sNew, eNew := payload.Token.ToNFA()
+
+				eOld.Transitions[utils.Epsilon] = append(
+					eOld.Transitions[utils.Epsilon],
+					sNew,
+				)
+
+				sOld = sNew
+				eOld = eNew
+
+				// TODO: remove optional to improve performance
+				if i > payload.Min {
+					sNew.Transitions[utils.Epsilon] = append(
+						sNew.Transitions[utils.Epsilon],
+						end,
+					)
+				}
+			}
 
 			eOld.Transitions[utils.Epsilon] = append(
 				eOld.Transitions[utils.Epsilon],
-				sNew,
+				end,
 			)
 
-			sOld = sNew
-			eOld = eNew
-
-			// TODO: remove optional to improve performance
-			if i > payload.Min {
-				sNew.Transitions[utils.Epsilon] = append(
-					sNew.Transitions[utils.Epsilon],
-					end,
+			if payload.Max == utils.Infinite {
+				end.Transitions[utils.Epsilon] = append(
+					end.Transitions[utils.Epsilon],
+					sOld,
 				)
 			}
 		}
 
-		eOld.Transitions[utils.Epsilon] = append(
-			eOld.Transitions[utils.Epsilon],
-			end,
-		)
-
-		if payload.Max == utils.Infinite {
-			end.Transitions[utils.Epsilon] = append(
-				end.Transitions[utils.Epsilon],
-				sOld,
-			)
-		}
-
 	case token_type.Literal:
-		ch := token.Value.(uint8)
-		start.Transitions[ch] = []*state.State{end}
+		if ch, ok := token.Value.(uint8); ok {
+			start.Transitions[ch] = []*state.State{end}
+		}
 
 	default:
 		panic("unknown type of token")

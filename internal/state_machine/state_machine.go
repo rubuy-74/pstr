@@ -1,12 +1,20 @@
 package state_machine
 
 import (
+	"fmt"
+
 	"github.com/rubuy-74/pstr/internal/models/state"
 	"github.com/rubuy-74/pstr/internal/parser"
 	"github.com/rubuy-74/pstr/internal/utils"
 )
 
-func ToNFA(ctx *parser.ParseContext) *state.State {
+// TODO: Fix ToNFA() - Array bounds crash when no tokens exist.
+// Line 10: ctx.Tokens[0] will panic if ctx.Tokens is empty.
+// Need to validate that tokens exist before processing.
+func ToNFA(ctx *parser.ParseContext) (*state.State, error) {
+	if len(ctx.Tokens) == 0 {
+		return nil, fmt.Errorf("missing tokens to create NFA")
+	}
 	startOld, endOld := (ctx.Tokens[0]).ToNFA()
 	for i := 1; i < len(ctx.Tokens); i++ {
 		startNew, endNew := (ctx.Tokens[i]).ToNFA()
@@ -30,5 +38,5 @@ func ToNFA(ctx *parser.ParseContext) *state.State {
 
 	endOld.Transitions[utils.Epsilon] = append(endOld.Transitions[utils.Epsilon], finalGlobalState)
 
-	return initialGlobalState
+	return initialGlobalState, nil
 }

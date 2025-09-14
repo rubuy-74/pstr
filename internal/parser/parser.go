@@ -48,21 +48,39 @@ func process(regex []byte, ctx *ParseContext) error {
 		if err != nil {
 			return err
 		}
-	case '|': // TODO: not implemented
-		processOr(regex, ctx)
+	case '|':
+		err := processOr(regex, ctx)
+		if err != nil {
+			return err
+		}
 
 	case '*':
-		processRepeat(regex, ctx, 0, utils.Infinite)
+		err := processRepeat(regex, ctx, 0, utils.Infinite)
+		if err != nil {
+			return err
+		}
 
 	case '+':
-		processRepeat(regex, ctx, 1, utils.Infinite)
+		err := processRepeat(regex, ctx, 1, utils.Infinite)
+		if err != nil {
+			return err
+		}
 
 	case '?':
-		processRepeat(regex, ctx, 0, 1)
+		err := processRepeat(regex, ctx, 0, 1)
+		if err != nil {
+			return err
+		}
 
 	case '{':
-		minimum, maximum := getMinMaxRange(regex, ctx)
-		processRepeat(regex, ctx, minimum, maximum)
+		minimum, maximum, err := getMinMaxRange(regex, ctx)
+		if err != nil {
+			return err
+		}
+		err = processRepeat(regex, ctx, minimum, maximum)
+		if err != nil {
+			return err
+		}
 	default:
 		ctx.Tokens = append(ctx.Tokens,
 			token.Token{
@@ -80,10 +98,12 @@ range {m}, {m,}, or {m,n}.
 - {m,} → min repetitions with no upper bound
 - {m,n} → explicit min and max repetitions
 If parsing fails or invalid, returns infinite for both.
-TODO: error handling
 */
-func getMinMaxRange(regex []byte, ctx *ParseContext) (minimum int, maximum int) {
-	newPos := findNextSymbol(regex, ctx.Pos, '}')
+func getMinMaxRange(regex []byte, ctx *ParseContext) (minimum int, maximum int, err error) {
+	newPos, err := findNextSymbol(regex, ctx.Pos, '}')
+	if err != nil {
+		return utils.Infinite, utils.Infinite, fmt.Errorf("missing ending '}'")
+	}
 	rawRange := string(regex[ctx.Pos+1 : newPos])
 	rangeString := strings.FieldsFunc(rawRange, func(r rune) bool {
 		return r == ','
@@ -93,24 +113,24 @@ func getMinMaxRange(regex []byte, ctx *ParseContext) (minimum int, maximum int) 
 	// TODO: better checking (use macros)
 	if !strings.Contains(rawRange, ",") {
 		value, _ := strconv.Atoi(rawRange)
-		return value, value
+		return value, value, nil
 	} else {
 		if len(rangeString) == 1 {
 			if rawRange[0] == ',' {
 				maximum, _ := strconv.Atoi(string(rangeString[0]))
-				return utils.Infinite, maximum
+				return utils.Infinite, maximum, nil
 			} else {
 				minimum, _ := strconv.Atoi(string(rangeString[0]))
-				return minimum, utils.Infinite
+				return minimum, utils.Infinite, nil
 			}
 		}
 		if len(rangeString) == 2 {
 			minimum, _ := strconv.Atoi(string(rangeString[0]))
 			maximum, _ := strconv.Atoi(string(rangeString[1]))
-			return minimum, maximum
+			return minimum, maximum, nil
 		}
 	}
-	return utils.Infinite, utils.Infinite
+	return utils.Infinite, utils.Infinite, fmt.Errorf("invalid range syntax")
 }
 
 /*
@@ -118,15 +138,19 @@ findNextSymbol scans forward in the regex string from prevPos
 until it finds the specified symbol, and returns its index.
 Returns -1 if not found within the regex.
 */
-func findNextSymbol(regex []byte, prevPos int, symbol uint8) int {
+func findNextSymbol(regex []byte, prevPos int, symbol uint8) (int, error) {
 	currPos := prevPos
+	if currPos >= len(regex) {
+		return -1, fmt.Errorf("symbol not found")
+	}
+
 	for regex[currPos] != symbol {
 		currPos++
-		if currPos > len(regex) {
-			return -1
+		if currPos >= len(regex) {
+			return -1, fmt.Errorf("symbol not found")
 		}
 	}
-	return currPos
+	return currPos, nil
 }
 
 /*
@@ -158,11 +182,17 @@ processGroup handles a capturing group "( ... )".
 */
 func processGroup(regex []byte, ctx *ParseContext) error {
 	ctx.Pos++
-	newPos := findNextSymbol(regex, ctx.Pos, ')')
+	newPos, err := findNextSymbol(regex, ctx.Pos, ')')
+	if err != nil {
+		return err
+	}
 	if newPos == 1 {
 		return fmt.Errorf("invalid ( in the regex string")
 	}
 	groupRegex := regex[ctx.Pos:newPos]
+	if len(groupRegex) == 0 {
+		return fmt.Errorf("empty group")
+	}
 	groupCtx := &ParseContext{
 		Pos:    0,
 		Tokens: []token.Token{},
@@ -191,19 +221,24 @@ processBrackets handles a character class "[ ... ]".
 */
 func processBrackets(regex []byte, ctx *ParseContext) error {
 	ctx.Pos++
-	newPos := findNextSymbol(regex, ctx.Pos, ']')
-	if newPos == 1 {
-		return fmt.Errorf("invalid [ in the regex string")
+	newPos, err := findNextSymbol(regex, ctx.Pos, ']')
+	if err != nil {
+		return err
 	}
 	insideRegex := regex[ctx.Pos:newPos]
+	if len(insideRegex) == 0 {
+		return fmt.Errorf("empty bracket expression")
+	}
+
+	if newPos == 1 || len(insideRegex) < 2 {
+		return fmt.Errorf("invalid [ in the regex string")
+	}
 
 	bpSlice := []token.BracketPayload{}
 
 	if slices.Contains(insideRegex, '-') {
 		ranges := chunkBytes(insideRegex, 3)
-		for _, r := range ranges {
-			bpSlice = append(bpSlice, r)
-		}
+		bpSlice = append(bpSlice, ranges...)
 	} else {
 		bpSlice = append(
 			bpSlice,
@@ -225,19 +260,31 @@ func processBrackets(regex []byte, ctx *ParseContext) error {
 }
 
 /*
-processOr placeholder for handling alternation '|'.
-Currently not implemented.
-*/
-func processOr(regex []byte, ctx *ParseContext) {
+ */
+func processOr(regex []byte, ctx *ParseContext) error {
 	rhsContext := &ParseContext{
 		Pos:    ctx.Pos,
 		Tokens: []token.Token{},
 	}
+	if len(ctx.Tokens) == 0 {
+		return fmt.Errorf("missing left operand")
+	}
+
+	if rhsContext.Pos+1 >= len(regex) {
+		return fmt.Errorf("missing right operand")
+	}
 
 	rhsContext.Pos += 1
 	for rhsContext.Pos < len(regex) && regex[rhsContext.Pos] != ')' {
-		process(regex, rhsContext)
+		err := process(regex, rhsContext)
+		if err != nil {
+			return err
+		}
 		rhsContext.Pos += 1
+	}
+
+	if len(rhsContext.Tokens) == 0 {
+		return fmt.Errorf("missing right operand")
 	}
 
 	left := token.Token{
@@ -256,6 +303,8 @@ func processOr(regex []byte, ctx *ParseContext) {
 		TokenType: token_type.Or,
 		Value:     []token.Token{left, right},
 	}}
+
+	return nil
 }
 
 /*
@@ -264,8 +313,13 @@ Currently not implemented.
 - The current processRepeat only allows one token to be repeated
 - It would be nice to be able to repeat a group. ex.: ([a-z]){2}
 */
-func processRepeat(regex []byte, ctx *ParseContext, min int, max int) {
+func processRepeat(regex []byte, ctx *ParseContext, min int, max int) error {
 	_ = regex // TODO: the regex variable will be used in the future
+
+	if len(ctx.Tokens) == 0 {
+		return fmt.Errorf("missing repeating element")
+	}
+
 	lastToken := ctx.Tokens[len(ctx.Tokens)-1]
 	ctx.Tokens = ctx.Tokens[:len(ctx.Tokens)-1]
 	ctx.Tokens = append(ctx.Tokens, token.Token{
@@ -276,6 +330,8 @@ func processRepeat(regex []byte, ctx *ParseContext, min int, max int) {
 			Token: lastToken,
 		},
 	})
+
+	return nil
 }
 
 /*
@@ -285,6 +341,10 @@ Parse initializes parsing for a regex string.
 - Returns final ParseContext with tokens
 */
 func Parse(regexString string) (*ParseContext, error) {
+	if len(regexString) == 0 {
+		return nil, fmt.Errorf("missing regex string")
+	}
+
 	regex := []byte(regexString)
 	ctx := &ParseContext{
 		Pos:    0,

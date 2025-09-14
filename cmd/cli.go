@@ -20,7 +20,10 @@ func MainDev() {
 		}
 		ctx.Print()
 
-		nfa := state_machine.ToNFA(ctx)
+		nfa, err := state_machine.ToNFA(ctx)
+		if err != nil {
+			log.Fatalf("Error while creating NFA: %s", err)
+		}
 		fmt.Println(nfa)
 
 		isValid := nfa.Check(stringToCheck, -1)
