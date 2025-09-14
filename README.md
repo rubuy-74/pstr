@@ -48,7 +48,7 @@
     ```
     Or run it directly with Go:
     ```bash
-    go run cmd/main_dev.go
+    go run cmd/pstr/main.go
     ```
 
 3.  **Test a pattern:**
@@ -67,7 +67,7 @@
 
 1.  **Run the API server:**
     ```bash
-    go run cmd/main.go
+    go run cmd/pstr/main.go
     ```
     The server will start on port `3000`.
 
@@ -79,19 +79,144 @@
     curl -X POST -H "Content-Type: application/json" -d '{"regex": "(a|b)*c", "string": "ababc"}' http://localhost:3000/check
     ```
 
-    *Expected Response:*
+    *Expected Response (Success):*
     ```json
     {
         "valid": true
     }
     ```
 
+    *Expected Response (Error):*
+    ```json
+    {
+        "error": "failed to parse regex",
+        "message": "missing left operand for | operator at position 0"
+    }
+    ```
+
+## 🧪 Testing
+
+> **Note**: This testing section was created using Cursor AI to provide comprehensive test coverage and reliability verification.
+
+The project includes extensive test suites to ensure reliability and prevent crashes on edge cases. All tests verify that the regex engine handles invalid inputs gracefully instead of crashing.
+
+### ▶️ Running Tests
+
+#### **Run All Tests (Basic)**
+```bash
+go test ./...
+```
+- Runs all tests in all packages
+- Shows only pass/fail status
+- Fast and clean output
+
+#### **Run All Tests (Verbose)**
+```bash
+go test ./... -v
+```
+- Shows detailed output for each test
+- Great for debugging and seeing what's being tested
+- Shows individual test case results
+
+#### **Run Tests for Specific Package**
+```bash
+go test ./internal/parser/
+go test ./internal/state_machine/
+go test ./internal/
+```
+
+#### **Run Specific Test Functions**
+```bash
+go test ./... -run="TestEmptyInputValidation"
+go test ./... -run="TestProcessRepeatEdgeCases"
+go test ./... -run="TestPanicRecovery"
+```
+
+#### **Run Tests with Coverage**
+```bash
+go test ./... -cover
+```
+- Shows test coverage percentage
+- Helps identify untested code
+
+#### **Run Tests with Race Detection**
+```bash
+go test ./... -race
+```
+- Detects race conditions in concurrent code
+- Important for production code
+
+#### **Run Tests with Benchmarking**
+```bash
+go test ./... -bench=.
+```
+- Runs benchmark tests (if you have any)
+- Measures performance
+
+#### **Generate Coverage Report**
+```bash
+go test ./... -coverprofile=coverage.out
+go tool cover -html=coverage.out
+```
+- Generates detailed coverage report
+- Opens HTML report in browser
+
+### 📊 Test Coverage
+
+The project includes comprehensive test suites covering:
+
+- **Integration Tests**: Complete pipeline testing with edge cases
+- **Parser Tests**: Original functionality + reliability tests
+- **State Machine Tests**: NFA creation and validation
+- **Reliability Tests**: Edge cases that previously caused crashes
+- **Panic Recovery Tests**: Ensures no crashes on invalid inputs
+- **Memory Safety Tests**: Validates safe memory access
+
+**Total Test Cases**: 50+ individual test cases covering all reliability fixes.
+
+### 🎯 Test Categories
+
+#### **Input Validation Tests**
+- Empty string handling
+- Whitespace-only inputs
+- Invalid operator usage
+
+#### **Array Bounds Safety Tests**
+- `processRepeat()` with no preceding tokens
+- `processOr()` with missing operands
+- `processBrackets()` with empty/invalid content
+- `processGroup()` with empty/unclosed groups
+- `ToNFA()` with empty token lists
+
+#### **Type Safety Tests**
+- `Token.ToNFA()` with invalid type assertions
+- Safe type assertion handling
+- Panic recovery verification
+
+#### **Error Handling Tests**
+- Proper error propagation
+- Meaningful error messages
+- Graceful failure handling
+
+#### **Edge Case Tests**
+- Malformed regex patterns
+- Unclosed brackets/groups/ranges
+- Invalid range syntax
+- Complex combinations
+
+### 💡 Recommended Usage
+
+- **Daily Development**: `go test ./...`
+- **Debugging Issues**: `go test ./... -v`
+- **Before Commits**: `go test ./... -race -cover`
+- **CI/CD Pipeline**: `go test ./... -v -cover`
+
 ## 📁 Project Structure
 
 ```text
 ├── cmd/
-│   ├── main.go              # API endpoint
-│   └── main_dev.go          # Application entry point (Interactive CLI)
+│   └── pstr/
+│       └── main.go          # API endpoint and CLI entry point
 ├── internal/
 │   ├── models/
 │   │   ├── state/
@@ -102,9 +227,12 @@
 │   │       └── token_type.go  # Enum for token types
 │   ├── parser/
 │   │   ├── parser.go        # Regex string to token parsing
-│   │   └── parser_test.go   # Tests for the parser
+│   │   ├── parser_test.go   # Tests for the parser
+│   │   └── reliability_test.go # Reliability and edge case tests
 │   ├── state_machine/
-│   │   └── state_machine.go # Token to NFA conversion and matching logic
+│   │   ├── state_machine.go # Token to NFA conversion and matching logic
+│   │   └── state_machine_test.go # State machine tests
+│   ├── integration_test.go  # End-to-end integration tests
 │   └── utils/
 │       └── utils.go         # Utility functions
 ├── go.mod                   # Go module definition
